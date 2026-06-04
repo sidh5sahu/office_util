@@ -26,3 +26,5 @@ moviepy
 svglib
 qrcode[pil]
 pyzbar
+scipy
+numpy

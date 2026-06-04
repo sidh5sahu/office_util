@@ -111,3 +111,64 @@ def clean_empty_folders(folder_path):
                 pass
     
     return deleted_count
+
+
+def base64_encode(input_path, output_path):
+    """Encode a file to base64 text."""
+    import base64
+    with open(input_path, "rb") as f:
+        data = f.read()
+    encoded = base64.b64encode(data).decode("utf-8")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(encoded)
+    print(f"Base64 encoded: {len(data)} bytes -> {len(encoded)} chars")
+
+
+def base64_decode(input_path, output_path):
+    """Decode a base64 text file back to binary."""
+    import base64
+    with open(input_path, "r", encoding="utf-8") as f:
+        encoded = f.read().strip()
+    data = base64.b64decode(encoded)
+    with open(output_path, "wb") as f:
+        f.write(data)
+    print(f"Base64 decoded: {len(encoded)} chars -> {len(data)} bytes")
+
+
+def get_disk_usage(path):
+    """Get disk usage information for a path. Returns dict with space info and extension breakdown."""
+    total, used, free = shutil.disk_usage(path)
+    
+    # Extension breakdown
+    ext_sizes = {}
+    file_count = 0
+    for root, dirs, files in os.walk(path):
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            try:
+                size = os.path.getsize(file_path)
+                ext = os.path.splitext(filename)[1].lower() or "(no ext)"
+                ext_sizes[ext] = ext_sizes.get(ext, 0) + size
+                file_count += 1
+            except (OSError, PermissionError):
+                pass
+
+    # Sort by size descending
+    sorted_exts = sorted(ext_sizes.items(), key=lambda x: x[1], reverse=True)
+
+    return {
+        "total": total,
+        "used": used,
+        "free": free,
+        "file_count": file_count,
+        "extensions": sorted_exts,
+    }
+
+
+def format_size(size_bytes):
+    """Format bytes into human-readable string."""
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if abs(size_bytes) < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} PB"

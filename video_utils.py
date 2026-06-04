@@ -159,3 +159,76 @@ def add_background_music(input_path, output_path, audio_path, volume=0.5):
     video = video.set_audio(final_audio)
     video.write_videofile(output_path, codec=VIDEO_CODEC, audio_codec="aac", preset=PRESET, threads=4)
     video.close()
+
+
+def video_to_gif(input_path, output_path, start=0, duration=5, fps=10, width=480):
+    """Convert a section of video to animated GIF."""
+    clip = mp.VideoFileClip(input_path)
+    
+    start_sec = parse_time(str(start)) if isinstance(start, str) else float(start)
+    end_sec = start_sec + float(duration)
+    
+    if end_sec > clip.duration:
+        end_sec = clip.duration
+    
+    sub = clip.subclip(start_sec, end_sec)
+    if sub.w > width:
+        sub = sub.resize(width=width)
+    
+    sub.write_gif(output_path, fps=int(fps))
+    clip.close()
+    print(f"GIF created: {duration}s @ {fps}fps")
+
+
+def extract_thumbnail(input_path, output_path, time_pos=1.0):
+    """Extract a single frame from a video as an image."""
+    clip = mp.VideoFileClip(input_path)
+    
+    t = parse_time(str(time_pos)) if isinstance(time_pos, str) else float(time_pos)
+    if t > clip.duration:
+        t = clip.duration / 2
+    
+    clip.save_frame(output_path, t=t)
+    clip.close()
+    print(f"Thumbnail extracted at {t:.1f}s")
+
+
+def reverse_video(input_path, output_path):
+    """Reverse video playback."""
+    clip = mp.VideoFileClip(input_path)
+    reversed_clip = clip.fx(mp.vfx.time_mirror)
+    reversed_clip.write_videofile(output_path, codec=VIDEO_CODEC, audio_codec="aac", preset=PRESET, threads=4)
+    clip.close()
+    print("Video reversed successfully")
+
+
+def download_media(url, output_dir, extract_audio=False):
+    """Download video or audio from YouTube, TikTok, Instagram, Twitter using yt-dlp."""
+    import yt_dlp
+    
+    # Ensure output directory exists
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    ydl_opts = {
+        'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' if not extract_audio else 'bestaudio/best',
+        'merge_output_format': 'mp4',
+        'quiet': False,
+        'no_warnings': True,
+    }
+    
+    if extract_audio:
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+        
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+            return True, "Download completed successfully."
+    except Exception as e:
+        return False, str(e)
+

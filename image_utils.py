@@ -215,3 +215,106 @@ def blur_faces(input_path, output_path, blur_strength=30):
         img[y:y+h, x:x+w] = blurred_face
     
     cv2.imwrite(output_path, img)
+
+
+def batch_process(input_paths, output_dir, operation="resize", **kwargs):
+    """Apply an operation to many images at once.
+    Operations: resize, grayscale, compress, convert, rotate, flip
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    processed = 0
+    for path in input_paths:
+        try:
+            base = os.path.basename(path)
+            name, ext = os.path.splitext(base)
+            out_path = os.path.join(output_dir, base)
+
+            if operation == "resize":
+                w = kwargs.get("width", 800)
+                h = kwargs.get("height", 600)
+                resize_image(path, out_path, w, h)
+            elif operation == "grayscale":
+                grayscale_image(path, out_path)
+            elif operation == "compress":
+                quality = kwargs.get("quality", 50)
+                compress_image(path, out_path, quality)
+            elif operation == "convert":
+                fmt = kwargs.get("format", "png")
+                out_path = os.path.join(output_dir, f"{name}.{fmt}")
+                convert_image_format(path, out_path)
+            elif operation == "rotate":
+                angle = kwargs.get("angle", 90)
+                rotate_image(path, out_path, angle)
+            elif operation == "flip":
+                direction = kwargs.get("direction", "horizontal")
+                flip_image(path, out_path, direction)
+            else:
+                continue
+
+            processed += 1
+            print(f"  Processed: {base}")
+        except Exception as e:
+            print(f"  Failed: {base} — {e}")
+    return processed
+
+
+def extract_color_palette(input_path, num_colors=6):
+    """Extract dominant colors from an image using k-means clustering.
+    Returns list of hex color strings.
+    """
+    img = cv2.imread(input_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # Resize for speed
+    img = cv2.resize(img, (150, 150))
+    pixels = img.reshape(-1, 3).astype(np.float32)
+
+    # k-means clustering
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
+    _, labels, centers = cv2.kmeans(pixels, num_colors, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    centers = centers.astype(int)
+
+    # Sort by frequency
+    counts = np.bincount(labels.flatten())
+    sorted_indices = np.argsort(-counts)
+
+    palette = []
+    for idx in sorted_indices:
+        r, g, b = centers[idx]
+        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+        palette.append(hex_color)
+
+    return palette
+
+
+def create_collage(image_paths, output_path, cols=3, thumb_size=300, padding=10):
+    """Create a grid collage from multiple images."""
+    if not image_paths:
+        raise ValueError("No images provided")
+
+    images = []
+    for p in image_paths:
+        try:
+            img = Image.open(p).convert("RGB")
+            img.thumbnail((thumb_size, thumb_size), Image.LANCZOS)
+            images.append(img)
+        except Exception as e:
+            print(f"  Skipping {os.path.basename(p)}: {e}")
+
+    if not images:
+        raise ValueError("No valid images to create collage")
+
+    rows = (len(images) + cols - 1) // cols
+    canvas_w = cols * (thumb_size + padding) + padding
+    canvas_h = rows * (thumb_size + padding) + padding
+
+    canvas = Image.new("RGB", (canvas_w, canvas_h), (30, 30, 30))
+
+    for i, img in enumerate(images):
+        row = i // cols
+        col = i % cols
+        x = padding + col * (thumb_size + padding) + (thumb_size - img.width) // 2
+        y = padding + row * (thumb_size + padding) + (thumb_size - img.height) // 2
+        canvas.paste(img, (x, y))
+
+    canvas.save(output_path)
+    print(f"Collage created: {len(images)} images in {rows}x{cols} grid")
